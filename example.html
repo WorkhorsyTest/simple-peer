@@ -7,45 +7,123 @@
 		<script type="text/javascript" src="simplepeer.js"></script>
 	</head>
   <body>
-    <style>
-      #outgoing {
-        width: 600px;
-        word-wrap: break-word;
-      }
-    </style>
-    <form>
-      <textarea id="incoming"></textarea>
-      <button type="submit">submit</button>
-    </form>
+    <div>
+      <button id="getAnswer">(2) Get Answer</button>
+      <br />
+      <textarea id="offer"></textarea>
+    </div>
+
+    <div>
+      <button id="getOffer">(1) Get Offer</button>
+      <br />
+      <textarea id="answer"></textarea>
+    </div>
+
     <button id="sendMessage">Send Message</button>
-    <pre id="outgoing"></pre>
   </body>
   <script>
-  var p = new SimplePeer({ initiator: location.hash === '#1', trickle: false })
+  function httpGetJSON(url, cb, timeout) {
+  	timeout = timeout || 3000;
+  	var xhr = new XMLHttpRequest();
+  	xhr.onreadystatechange = function() {
+  		if (this.readyState === 4) {
+  			cb(this.response, this.status);
+  		} else if (this.readyState === 0) {
+  			cb(null);
+  		}
+  	};
+  	xhr.onerror = function() {
+  		cb(null);
+  	};
+  	xhr.open('GET', url, true);
+  	xhr.responseType = 'json';
+  	xhr.timeout = timeout;
+  	xhr.send(null);
+  }
 
-  p.on('error', function (err) { console.log('error', err) })
 
-  p.on('signal', function (data) {
-    console.log('SIGNAL', JSON.stringify(data))
-    document.querySelector('#outgoing').textContent = JSON.stringify(data)
-  })
+  var httpServer = 'http://' + document.URL.split('://')[1].split(':')[0] + ':8888';
+  console.info(httpServer);
 
-  document.querySelector('form').addEventListener('submit', function (ev) {
-    ev.preventDefault()
-    p.signal(JSON.parse(document.querySelector('#incoming').value))
-  })
+  var g_offer = null;
+  var g_answer = null;
+  var is_initiator = location.hash === '#1';
+  var peer = new SimplePeer({ initiator: is_initiator, trickle: false })
 
-  p.on('connect', function () {
-    console.log('CONNECT')
-    p.send('whatever' + Math.random())
-  })
+  peer.on('error', function (err) {
+    console.log('error', err);
+  });
 
-  p.on('data', function (data) {
-    console.log('data: ' + data)
-  })
+  peer.on('signal', function (data) {
+    console.log('SIGNAL', JSON.stringify(data));
+
+    if (is_initiator) {
+      g_offer = data;
+      var enc_offer = encodeURIComponent(btoa(JSON.stringify(g_offer)));
+      httpGetJSON(httpServer + '/set_offer.json?offer=' + enc_offer, function(response, status) {
+          if (status === 200) {
+              console.info(response);
+          } else {
+              console.error('offer failed with status: ' + status);
+          }
+      });
+    } else {
+      g_answer = data;
+      var enc_answer = encodeURIComponent(btoa(JSON.stringify(g_answer)));
+      var enc_offer = encodeURIComponent(btoa(JSON.stringify(g_offer)));
+      //console.info(enc_answer);
+      //console.info(enc_offer);
+      httpGetJSON(httpServer + '/set_answer.json?answer=' + enc_answer + '&offer=' + enc_offer, function(response, status) {
+          if (status === 200) {
+              console.info(response);
+          } else {
+              console.error('answer failed .....');
+          }
+      });
+    }
+  });
+
+  peer.on('connect', function () {
+    console.log('CONNECT');
+    peer.send('whatever' + Math.random());
+  });
+
+  peer.on('data', function (data) {
+    console.log('data: ' + data);
+  });
 
   document.querySelector('#sendMessage').addEventListener('click', function(e) {
-    p.send('whatever' + Math.random());
+    peer.send('whatever' + Math.random());
+  });
+
+  document.querySelector('#getOffer').addEventListener('click', function(e) {
+    httpGetJSON(httpServer + '/get_offers.json', function(response, status) {
+        if (status === 200) {
+            var offer = response[0];
+            g_offer = JSON.parse(atob(decodeURIComponent(offer)));
+            //$('#offer').val(JSON.stringify(g_offer));
+            console.info(g_offer);
+            peer.signal(g_offer);
+
+        } else {
+            console.error('offer failed .....');
+        }
+    });
+  });
+
+  document.querySelector('#getAnswer').addEventListener('click', function(e) {
+    var enc_offer = encodeURIComponent(btoa(JSON.stringify(g_offer)));
+    httpGetJSON(httpServer + '/get_answer.json?offer=' + enc_offer, function(response, status) {
+        if (status === 200) {
+            //console.info(response);
+            g_answer = JSON.parse(atob(decodeURIComponent(response)));
+            console.info(g_answer);
+            peer.signal(g_answer);
+            //$('#answer').val(JSON.stringify(g_answer));
+        } else {
+            console.error('offer failed .....');
+        }
+    });
   });
   </script>
 </html>
