@@ -61,9 +61,7 @@
       g_offer = data;
       var enc_offer = encodeURIComponent(btoa(JSON.stringify(g_offer)));
       httpGetJSON(httpServer + '/set_offer.json?offer=' + enc_offer, function(response, status) {
-          if (status === 200) {
-              console.info(response);
-          } else {
+          if (status !== 200) {
               console.error('offer failed with status: ' + status);
           }
       });
@@ -71,12 +69,8 @@
       g_answer = data;
       var enc_answer = encodeURIComponent(btoa(JSON.stringify(g_answer)));
       var enc_offer = encodeURIComponent(btoa(JSON.stringify(g_offer)));
-      //console.info(enc_answer);
-      //console.info(enc_offer);
       httpGetJSON(httpServer + '/set_answer.json?answer=' + enc_answer + '&offer=' + enc_offer, function(response, status) {
-          if (status === 200) {
-              console.info(response);
-          } else {
+          if (status !== 200) {
               console.error('answer failed .....');
           }
       });
@@ -101,7 +95,6 @@
         if (status === 200) {
             var offer = response[0];
             g_offer = JSON.parse(atob(decodeURIComponent(offer)));
-            //$('#offer').val(JSON.stringify(g_offer));
             console.info(g_offer);
             peer.signal(g_offer);
 
@@ -115,11 +108,9 @@
     var enc_offer = encodeURIComponent(btoa(JSON.stringify(g_offer)));
     httpGetJSON(httpServer + '/get_answer.json?offer=' + enc_offer, function(response, status) {
         if (status === 200) {
-            //console.info(response);
             g_answer = JSON.parse(atob(decodeURIComponent(response)));
             console.info(g_answer);
             peer.signal(g_answer);
-            //$('#answer').val(JSON.stringify(g_answer));
         } else {
             console.error('offer failed .....');
         }
