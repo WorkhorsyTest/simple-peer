@@ -7,12 +7,16 @@
 		<script type="text/javascript" src="simplepeer.js"></script>
 	</head>
   <body>
+    <div id="listOfOffers" style="border: 1px solid red;">
+
+    </div>
+<!--
     <div>
       <button id="getAnswer">(2) Get Answer</button>
       <br />
       <textarea id="offer"></textarea>
     </div>
-
+-->
     <div>
       <button id="getOffer">(1) Get Offer</button>
       <br />
@@ -32,9 +36,20 @@
     //console.info(JSON.stringify(message));
     switch (data.type) {
       case 'get_offers':
-        g_offer = JSON.parse(data.offers[0]);
-        //console.info(JSON.stringify(g_offer));
-        peer.signal(g_offer);
+        var listOfOffers = document.querySelector('#listOfOffers');
+        for (var i=0; i<data.offers.length; ++i) {
+          var offer = JSON.parse(data.offers[i]);
+          var a = document.createElement('a');
+          a.href = '#';
+          a.innerHTML = JSON.stringify(offer);
+          a.addEventListener('click', function(e) {
+              e.preventDefault();
+              g_offer = offer;
+              console.info(JSON.stringify(g_offer));
+              peer.signal(g_offer);
+          });
+          listOfOffers.appendChild(a);
+        }
         break;
       case 'get_answer':
         g_answer = JSON.parse(data.answer);
@@ -84,9 +99,10 @@
   document.querySelector('#getOffer').addEventListener('click', function(e) {
     ws.send(JSON.stringify({type: 'get_offers'}));
   });
-
+/*
   document.querySelector('#getAnswer').addEventListener('click', function(e) {
     ws.send(JSON.stringify({type: 'get_answer', offer: JSON.stringify(g_offer)}));
   });
+*/
   </script>
 </html>
