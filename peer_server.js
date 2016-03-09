@@ -2,64 +2,67 @@
 
 
 var port = 8888;
-var express = require('express');
-var app = express();
+var WebSocketServer = require('websocket').server;
+var http = require('http');
 var g_offers = {};
 
-app.get('/', function (req, res) {
-	res.header("Access-Control-Allow-Origin", "*");
-	res.header("Access-Control-Allow-Headers", "X-Requested-With");
-	res.status(200).send('Hello World!');
+var server = http.createServer(function(request, response) {
 });
-
-app.get('/get_offers.json', function (req, res) {
-	console.log('get_offers.json');
-	res.header("Access-Control-Allow-Origin", "*");
-	res.header("Access-Control-Allow-Headers", "X-Requested-With");
-	res.setHeader('Content-Type', 'application/json');
-
-	res.status(200).send(JSON.stringify(Object.keys(g_offers)));
-});
-
-app.get('/set_offer.json', function (req, res) {
-	console.log('set_offers.json');
-	res.header("Access-Control-Allow-Origin", "*");
-	res.header("Access-Control-Allow-Headers", "X-Requested-With");
-	res.setHeader('Content-Type', 'application/json');
-	var offer = req.param('offer');
-	console.log(offer);
-	g_offers[offer] = 1;
-
-	res.status(200).send(JSON.stringify({}));
-});
-
-app.get('/get_answer.json', function (req, res) {
-	console.log('get_answer.json');
-	res.header("Access-Control-Allow-Origin", "*");
-	res.header("Access-Control-Allow-Headers", "X-Requested-With");
-	res.setHeader('Content-Type', 'application/json');
-	var offer = req.param('offer');
-	var answer = g_offers[offer];
-	console.info(offer);
-	console.info(answer);
-
-	res.status(200).send(JSON.stringify(answer));
-});
-
-app.get('/set_answer.json', function (req, res) {
-	console.log('set_answer.json');
-	res.header("Access-Control-Allow-Origin", "*");
-	res.header("Access-Control-Allow-Headers", "X-Requested-With");
-	res.setHeader('Content-Type', 'application/json');
-	var offer = req.param('offer');
-	var answer = req.param('answer');
-	console.log(offer);
-	console.log(answer);
-	g_offers[offer] = answer;
-
-	res.status(200).send(JSON.stringify({}));
-});
-
-app.listen(port, function() {
+server.listen(port, function() {
 	console.log('Server running at http://localhost:' + port);
+});
+
+// create the server
+wsServer = new WebSocketServer({
+    httpServer: server
+});
+
+// WebSocket server
+wsServer.on('request', function(request) {
+    var connection = request.accept('peer-protocol', request.origin);
+
+    // This is the most important callback for us, we'll handle
+    // all messages from users here.
+    connection.on('message', function(message) {
+
+
+        if (message.type === 'utf8') {
+            var data = JSON.parse(message.utf8Data);
+						console.log('CALLING:', data.type);
+						switch (data.type) {
+							case 'set_offer':
+								var offer = data.offer;
+								//console.info('offer:', offer);
+								g_offers[offer] = 1;
+								break;
+							case 'get_offers':
+							  //console.info(JSON.stringify(g_offers));
+								var msg = JSON.stringify({ type:'get_offers', offers: Object.keys(g_offers) });
+								console.info(msg);
+								connection.sendUTF(msg);
+								break;
+							case 'set_answer':
+								var answer = data.answer;
+								var offer = data.offer;
+								//console.info(answer);
+								g_offers[offer] = answer;
+								break;
+							case 'get_answer':
+								var offer = data.offer;
+								var answer = g_offers[offer];
+								//console.info('offer:', offer);
+								//console.info('answer:', answer);
+								var msg = JSON.stringify({ type:'get_answer', answer: answer });
+								connection.sendUTF(msg);
+								break;
+							default:
+								console.error('Unknown message type.');
+								console.error(data.type);
+						}
+        }
+    });
+
+    connection.on('close', function(connection) {
+        // close user connection
+    });
 });

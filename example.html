@@ -22,28 +22,30 @@
     <button id="sendMessage">Send Message</button>
   </body>
   <script>
-  function httpGetJSON(url, cb, timeout) {
-  	timeout = timeout || 3000;
-  	var xhr = new XMLHttpRequest();
-  	xhr.onreadystatechange = function() {
-  		if (this.readyState === 4) {
-  			cb(this.response, this.status);
-  		} else if (this.readyState === 0) {
-  			cb(null);
-  		}
-  	};
-  	xhr.onerror = function() {
-  		cb(null);
-  	};
-  	xhr.open('GET', url, true);
-  	xhr.responseType = 'json';
-  	xhr.timeout = timeout;
-  	xhr.send(null);
-  }
 
+  var wsAddress = 'ws://' + document.URL.split('://')[1].split(':')[0] + ':8888';
+  console.info(wsAddress);
+  var ws = new WebSocket(wsAddress, 'peer-protocol');
 
-  var httpServer = 'http://' + document.URL.split('://')[1].split(':')[0] + ':8888';
-  console.info(httpServer);
+  ws.addEventListener('message', function(message) {
+    var data = JSON.parse(message.data);
+    //console.info(JSON.stringify(message));
+    switch (data.type) {
+      case 'get_offers':
+        g_offer = JSON.parse(data.offers[0]);
+        //console.info(JSON.stringify(g_offer));
+        peer.signal(g_offer);
+        break;
+      case 'get_answer':
+        g_answer = JSON.parse(data.answer);
+        //console.info(JSON.stringify(g_answer));
+        peer.signal(g_answer);
+        break;
+      default:
+        console.error('Unknown message type.');
+        console.error(data.type);
+    }
+  });
 
   var g_offer = null;
   var g_answer = null;
@@ -59,21 +61,10 @@
 
     if (is_initiator) {
       g_offer = data;
-      var enc_offer = encodeURIComponent(btoa(JSON.stringify(g_offer)));
-      httpGetJSON(httpServer + '/set_offer.json?offer=' + enc_offer, function(response, status) {
-          if (status !== 200) {
-              console.error('offer failed with status: ' + status);
-          }
-      });
+      ws.send(JSON.stringify({type: 'set_offer', offer: JSON.stringify(g_offer)}));
     } else {
       g_answer = data;
-      var enc_answer = encodeURIComponent(btoa(JSON.stringify(g_answer)));
-      var enc_offer = encodeURIComponent(btoa(JSON.stringify(g_offer)));
-      httpGetJSON(httpServer + '/set_answer.json?answer=' + enc_answer + '&offer=' + enc_offer, function(response, status) {
-          if (status !== 200) {
-              console.error('answer failed .....');
-          }
-      });
+      ws.send(JSON.stringify({type: 'set_answer', answer: JSON.stringify(g_answer), offer: JSON.stringify(g_offer)}));
     }
   });
 
@@ -91,30 +82,11 @@
   });
 
   document.querySelector('#getOffer').addEventListener('click', function(e) {
-    httpGetJSON(httpServer + '/get_offers.json', function(response, status) {
-        if (status === 200) {
-            var offer = response[0];
-            g_offer = JSON.parse(atob(decodeURIComponent(offer)));
-            console.info(g_offer);
-            peer.signal(g_offer);
-
-        } else {
-            console.error('offer failed .....');
-        }
-    });
+    ws.send(JSON.stringify({type: 'get_offers'}));
   });
 
   document.querySelector('#getAnswer').addEventListener('click', function(e) {
-    var enc_offer = encodeURIComponent(btoa(JSON.stringify(g_offer)));
-    httpGetJSON(httpServer + '/get_answer.json?offer=' + enc_offer, function(response, status) {
-        if (status === 200) {
-            g_answer = JSON.parse(atob(decodeURIComponent(response)));
-            console.info(g_answer);
-            peer.signal(g_answer);
-        } else {
-            console.error('offer failed .....');
-        }
-    });
+    ws.send(JSON.stringify({type: 'get_answer', offer: JSON.stringify(g_offer)}));
   });
   </script>
 </html>
