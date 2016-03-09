@@ -10,26 +10,25 @@
     <div id="listOfOffers" style="border: 1px solid red;">
 
     </div>
-<!--
-    <div>
-      <button id="getAnswer">(2) Get Answer</button>
-      <br />
-      <textarea id="offer"></textarea>
-    </div>
--->
-    <div>
-      <button id="getOffer">(1) Get Offer</button>
-      <br />
-      <textarea id="answer"></textarea>
-    </div>
 
     <button id="sendMessage">Send Message</button>
   </body>
   <script>
 
+  var g_offer = null;
+  var g_answer = null;
+  var is_initiator = location.hash === '#1';
+
   var wsAddress = 'ws://' + document.URL.split('://')[1].split(':')[0] + ':8888';
   console.info(wsAddress);
   var ws = new WebSocket(wsAddress, 'peer-protocol');
+
+  // Get all offer when we connect to the WebSocket
+  ws.addEventListener('open', function(message) {
+    if (! is_initiator) {
+      ws.send(JSON.stringify({type: 'get_offers', offer: JSON.stringify(g_offer)}));
+    }
+  });
 
   ws.addEventListener('message', function(message) {
     var data = JSON.parse(message.data);
@@ -37,6 +36,7 @@
     switch (data.type) {
       case 'get_offers':
         var listOfOffers = document.querySelector('#listOfOffers');
+        listOfOffers.innerHTML = '';
         for (var i=0; i<data.offers.length; ++i) {
           var offer = JSON.parse(data.offers[i]);
           var a = document.createElement('a');
@@ -62,9 +62,6 @@
     }
   });
 
-  var g_offer = null;
-  var g_answer = null;
-  var is_initiator = location.hash === '#1';
   var peer = new SimplePeer({ initiator: is_initiator, trickle: false })
 
   peer.on('error', function (err) {
@@ -95,14 +92,5 @@
   document.querySelector('#sendMessage').addEventListener('click', function(e) {
     peer.send('whatever' + Math.random());
   });
-
-  document.querySelector('#getOffer').addEventListener('click', function(e) {
-    ws.send(JSON.stringify({type: 'get_offers'}));
-  });
-/*
-  document.querySelector('#getAnswer').addEventListener('click', function(e) {
-    ws.send(JSON.stringify({type: 'get_answer', offer: JSON.stringify(g_offer)}));
-  });
-*/
   </script>
 </html>

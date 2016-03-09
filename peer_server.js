@@ -24,7 +24,7 @@ var g_next_id = 1;
 wsServer.on('request', function(request) {
     var connection = request.accept('peer-protocol', request.origin);
 		connection.id = g_next_id++;
-		console.log(connection.id);
+		console.log('connect id:', connection.id);
 
 		connection.on('error', function (error) {
         console.error('error: ', connection.id, error);
@@ -34,8 +34,15 @@ wsServer.on('request', function(request) {
         console.error('open: ', connection.id);
     });
 
-		connection.on('close', function(connection) {
+		connection.on('close', function(con) {
         console.log('closed: ', connection.id);
+				Object.keys(g_offer_connections).forEach(function(offer) {
+					var other_con = g_offer_connections[offer];
+					if (other_con == connection) {
+							delete g_offer_connections[offer];
+							delete g_offers[offer];
+					}
+				});
     });
 
     connection.on('message', function(message) {
