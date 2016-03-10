@@ -23,10 +23,10 @@
   console.info(wsAddress);
   var ws = new WebSocket(wsAddress, 'peer-protocol');
 
-  // Get all offer when we connect to the WebSocket
+  // Get all offers when we connect to the WebSocket
   ws.addEventListener('open', function(message) {
     if (! is_initiator) {
-      ws.send(JSON.stringify({type: 'get_offers', offer: JSON.stringify(g_offer)}));
+      ws.send(JSON.stringify({type: 'get_offers'}));
     }
   });
 
@@ -45,7 +45,9 @@
           a.addEventListener('click', function(e) {
               e.preventDefault();
               g_offer = offer;
+							console.info('!!! signal -> offer');
               console.info(JSON.stringify(g_offer));
+							// Tell this peer that the offer is ready
               peer.signal(g_offer);
           });
           listOfOffers.appendChild(a);
@@ -54,6 +56,9 @@
       case 'get_answer':
         g_answer = JSON.parse(data.answer);
         //console.info(JSON.stringify(g_answer));
+				console.info('!!! signal -> answer');
+				console.info(JSON.stringify(g_answer));
+				// Tell this peer that the answer is ready
         peer.signal(g_answer);
         break;
       default:
@@ -68,13 +73,18 @@
     console.log('error', err);
   });
 
+  // When an offer or answer is generated, send it to the WebSocket
   peer.on('signal', function (data) {
-    console.log('SIGNAL', JSON.stringify(data));
+    //console.log('SIGNAL', JSON.stringify(data));
 
     if (is_initiator) {
+			console.info('!!! signal <- offer');
+			console.info(JSON.stringify(data));
       g_offer = data;
       ws.send(JSON.stringify({type: 'set_offer', offer: JSON.stringify(g_offer)}));
     } else {
+			console.info('!!! signal <- answer');
+			console.info(JSON.stringify(data));
       g_answer = data;
       ws.send(JSON.stringify({type: 'set_answer', answer: JSON.stringify(g_answer), offer: JSON.stringify(g_offer)}));
     }
