@@ -15,92 +15,120 @@
   </body>
   <script>
 
-  var g_offer = null;
-  var g_answer = null;
-  var is_initiator = location.hash === '#1';
+var wsAddress = 'ws://' + document.URL.split('://')[1].split(':')[0] + ':8888';
+console.info(wsAddress);
+var webSocket = new WebSocket(wsAddress, 'peer-protocol');
+var g_selected_peer = null;
 
-  var wsAddress = 'ws://' + document.URL.split('://')[1].split(':')[0] + ':8888';
-  console.info(wsAddress);
-  var ws = new WebSocket(wsAddress, 'peer-protocol');
+// Get all offers when we connect to the WebSocket
+webSocket.addEventListener('open', function(message) {
+	webSocket.send(JSON.stringify({type: 'get_offers'}));
+});
 
-  // Get all offers when we connect to the WebSocket
-  ws.addEventListener('open', function(message) {
-    if (! is_initiator) {
-      ws.send(JSON.stringify({type: 'get_offers'}));
-    }
-  });
+webSocket.addEventListener('message', function(message) {
+	var data = JSON.parse(message.data);
+	//console.info(JSON.stringify(message));
+	//console.info(JSON.stringify(data));
+	//console.info(JSON.stringify(data.type));
+	switch (data.type) {
+		case 'get_offers':
+			var listOfOffers = document.querySelector('#listOfOffers');
+			listOfOffers.innerHTML = '';
+			for (var i=0; i<data.offers.length; ++i) {
+				var offer = JSON.parse(data.offers[i]);
+				var a = document.createElement('a');
+				a.href = '#';
+				a.innerHTML = JSON.stringify(offer);
+				a.addEventListener('click', function(e) {
+						e.preventDefault();
+						console.info(g_selected_peer);
+						g_selected_peer.g_offer = offer;
+						console.info('!!! signal -> offer');
+						console.info(JSON.stringify(g_selected_peer.g_offer));
+						// Tell this peer that the offer is ready
+						g_selected_peer.peer.signal(g_selected_peer.g_offer);
+				});
+				listOfOffers.appendChild(a);
+			}
+			break;
+		case 'get_answer':
+			g_selected_peer.g_answer = JSON.parse(data.answer);
+			//console.info(JSON.stringify(g_selected_peer.g_answer));
+			console.info('!!! signal -> answer');
+			console.info(JSON.stringify(g_selected_peer.g_answer));
+			// Tell this peer that the answer is ready
+			g_selected_peer.peer.signal(g_selected_peer.g_answer);
+			break;
+		default:
+			console.error('Unknown message type.');
+			console.error(data.type);
+	}
+});
 
-  ws.addEventListener('message', function(message) {
-    var data = JSON.parse(message.data);
-    //console.info(JSON.stringify(message));
-    switch (data.type) {
-      case 'get_offers':
-        var listOfOffers = document.querySelector('#listOfOffers');
-        listOfOffers.innerHTML = '';
-        for (var i=0; i<data.offers.length; ++i) {
-          var offer = JSON.parse(data.offers[i]);
-          var a = document.createElement('a');
-          a.href = '#';
-          a.innerHTML = JSON.stringify(offer);
-          a.addEventListener('click', function(e) {
-              e.preventDefault();
-              g_offer = offer;
-							console.info('!!! signal -> offer');
-              console.info(JSON.stringify(g_offer));
-							// Tell this peer that the offer is ready
-              peer.signal(g_offer);
-          });
-          listOfOffers.appendChild(a);
-        }
-        break;
-      case 'get_answer':
-        g_answer = JSON.parse(data.answer);
-        //console.info(JSON.stringify(g_answer));
-				console.info('!!! signal -> answer');
-				console.info(JSON.stringify(g_answer));
-				// Tell this peer that the answer is ready
-        peer.signal(g_answer);
-        break;
-      default:
-        console.error('Unknown message type.');
-        console.error(data.type);
-    }
-  });
 
-  var peer = new SimplePeer({ initiator: is_initiator, trickle: false })
 
-  peer.on('error', function (err) {
-    console.log('error', err);
-  });
+class PeerConnection {
+  constructor(is_initiator) {
+		this.g_offer = null;
+	  this.g_answer = null;
+	  this.is_initiator = is_initiator;
 
-  // When an offer or answer is generated, send it to the WebSocket
-  peer.on('signal', function (data) {
-    //console.log('SIGNAL', JSON.stringify(data));
+		this.peer = new SimplePeer({
+				initiator: this.is_initiator,
+				trickle: false
+		});
 
-    if (is_initiator) {
-			console.info('!!! signal <- offer');
-			console.info(JSON.stringify(data));
-      g_offer = data;
-      ws.send(JSON.stringify({type: 'set_offer', offer: JSON.stringify(g_offer)}));
-    } else {
-			console.info('!!! signal <- answer');
-			console.info(JSON.stringify(data));
-      g_answer = data;
-      ws.send(JSON.stringify({type: 'set_answer', answer: JSON.stringify(g_answer), offer: JSON.stringify(g_offer)}));
-    }
-  });
+		this.peer.on('open', function (err) {
+	    console.log('open');
+	  });
 
-  peer.on('connect', function () {
-    console.log('CONNECT');
-    peer.send('whatever' + Math.random());
-  });
+	  this.peer.on('error', function (err) {
+	    console.log('error', err);
+	  });
 
-  peer.on('data', function (data) {
-    console.log('data: ' + data);
-  });
+		this.peer.on('close', function () {
+			console.log('close');
+		});
+
+	  // When an offer or answer is generated, send it to the WebSocket
+		this.peer.peer_connection = this;
+	  this.peer.on('signal', function (data) {
+	    //console.log('SIGNAL', JSON.stringify(data));
+
+	    if (this.peer_connection.is_initiator) {
+				console.info('!!! signal <- offer');
+				console.info(JSON.stringify(data));
+	      this.peer_connection.g_offer = data;
+	      webSocket.send(JSON.stringify({type: 'set_offer', offer: JSON.stringify(this.peer_connection.g_offer)}));
+	    } else {
+				console.info('!!! signal <- answer');
+				console.info(JSON.stringify(data));
+	      this.peer_connection.g_answer = data;
+	      webSocket.send(JSON.stringify({type: 'set_answer', answer: JSON.stringify(this.peer_connection.g_answer), offer: JSON.stringify(this.peer_connection.g_offer)}));
+	    }
+	  });
+
+	  this.peer.on('connect', function () {
+	    console.log('CONNECT');
+	    this.send('whatever' + Math.random());
+	  });
+
+	  this.peer.on('data', function (data) {
+	    console.log('data: ' + data);
+	  });
+	}
+
+	send(message) {
+		this.peer.send(message);
+	}
+}
+
+	var is_initiator = location.hash === '#1';
+	var peer_con = new PeerConnection(is_initiator);
+	g_selected_peer = peer_con;
 
   document.querySelector('#sendMessage').addEventListener('click', function(e) {
-    peer.send('whatever' + Math.random());
+		peer_con.send('whatever' + Math.random());
   });
   </script>
 </html>
